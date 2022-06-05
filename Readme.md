@@ -18,6 +18,7 @@ after which the hash is recomputed and added to the database.
 
 ```go
 import (
+  "github.com/bobg/mghash"
   "github.com/bobg/mghash/sqlite"
 )
 
