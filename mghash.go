@@ -1,0 +1,98 @@
+package mghash
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"reflect"
+	"runtime"
+
+	json "github.com/gibson042/canonicaljson-go"
+	"github.com/magefile/mage/mg"
+	"github.com/pkg/errors"
+)
+
+// Fn is an mg.Fn (see https://pkg.go.dev/github.com/magefile/mage/mg#Fn)
+// that knows how to skip rebuilding a target that is up-to-date with respect to its sources.
+// "Up-to-date" here does not refer to file modtimes, but rather to content hashes.
+type Fn struct {
+	Rule Rule
+	DB   DB
+}
+
+// Rule knows how to report a hash representing itself,
+// another hash representing itself plus the state of all sources and targets,
+// and how to produce its targets from its sources.
+type Rule interface {
+	// RuleHash produces the hash of this rule.
+	// This should be a strong, collision-resistant value
+	// that is sensitive to changes in the rule itself
+	// but not in any of its sources or products.
+	RuleHash() []byte
+
+	// ContentHash produces a hash that incorporates information about the rule
+	// combined with the state of all sources and products.
+	// This should be a strong, collision-resistant value.
+	ContentHash(context.Context) ([]byte, error)
+
+	// Run is a function that can generate this rule's products.
+	Run(context.Context) error
+}
+
+// DB is a database for storing hashes.
+// It must permit concurrent operations safely.
+// It may expire entries to save space.
+type DB interface {
+	// Has tells whether the database contains the given entry.
+	Has(context.Context, []byte) (bool, error)
+
+	// Add adds an entry to the database.
+	Add(context.Context, []byte) error
+}
+
+var _ mg.Fn = &Fn{}
+
+func (f *Fn) Name() string {
+	// As suggested at runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name().
+	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
+}
+
+func (f *Fn) ID() string {
+	s := struct {
+		Name     string `json:"name"`
+		RuleHash []byte `json:"rule_hash"`
+	}{
+		Name:     f.Name(),
+		RuleHash: f.Rule.RuleHash(),
+	}
+	j, _ := json.Marshal(s)
+	sum := sha256.Sum256(j)
+	return hex.EncodeToString(sum[:])
+}
+
+func (f *Fn) Run(ctx context.Context) error {
+	h, err := f.Rule.ContentHash(ctx)
+	if err != nil {
+		return errors.Wrap(err, "computing content hash")
+	}
+	ok, err := f.DB.Has(ctx, h)
+	if err != nil {
+		return errors.Wrap(err, "consulting hash DB")
+	}
+	if ok {
+		// Build not needed.
+		fmt.Println("xxx Build not needed")
+		return nil
+	}
+	fmt.Println("xxx Running build")
+	err = f.Rule.Run(ctx)
+	if err != nil {
+		return errors.Wrap(err, "in Run")
+	}
+	h, err = f.Rule.ContentHash(ctx)
+	if err != nil {
+		return errors.Wrap(err, "recomputing content hash")
+	}
+	return f.DB.Add(ctx, h)
+}
