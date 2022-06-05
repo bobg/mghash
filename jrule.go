@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 
 	json "github.com/gibson042/canonicaljson-go"
 	"github.com/magefile/mage/mg"
@@ -26,7 +28,7 @@ type JRule struct {
 var _ Rule = JRule{}
 
 func (jr JRule) String() string {
-	return fmt.Sprintf("rule to produce %v", jr.Targets)
+	return fmt.Sprintf("JRule[%s]", strings.Join(jr.Targets, " "))
 }
 
 func (jr JRule) RuleHash() []byte {
@@ -45,6 +47,20 @@ func (jr JRule) RuleHash() []byte {
 }
 
 func (jr JRule) ContentHash(_ context.Context) ([]byte, error) {
+	// Theory of operation:
+	// A new struct is built out of the fields of jr,
+	// but with Sources and Targets mapped to each file's hash,
+	// where the file exists
+	// (and nil where it doesn't).
+	// The struct is JSON marshaled
+	// (using canonical-json for reproducibility)
+	// and hashed.
+	// Any change to the set of sources or targets,
+	// the presence of absence of any file,
+	// the content of any file,
+	// or the strings in jr.Command
+	// will change the hash.
+
 	s := struct {
 		Sources map[string][]byte `json:"sources"`
 		Targets map[string][]byte `json:"targets"`
@@ -75,6 +91,7 @@ func (jr JRule) Run(ctx context.Context) error {
 	if mg.Verbose() {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
+		log.Printf("Running %s %s", jr.Command[0], strings.Join(jr.Command[1:], " "))
 	}
 	return cmd.Run()
 }
