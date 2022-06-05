@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"reflect"
 	"runtime"
 
@@ -17,26 +18,28 @@ import (
 // that knows how to skip rebuilding a target that is up-to-date with respect to its sources.
 // "Up-to-date" here does not refer to file modtimes, but rather to content hashes.
 type Fn struct {
-	Rule Rule
 	DB   DB
+	Rule Rule
 }
 
 // Rule knows how to report a hash representing itself,
-// another hash representing itself plus the state of all sources and targets,
+// and another hash representing itself plus the state of all sources and targets;
 // and how to produce its targets from its sources.
 type Rule interface {
+	fmt.Stringer
+
 	// RuleHash produces the hash of this rule.
 	// This should be a strong, collision-resistant value
 	// that is sensitive to changes in the rule itself
-	// but not in any of its sources or products.
+	// but not in any of its sources or targets.
 	RuleHash() []byte
 
 	// ContentHash produces a hash that incorporates information about the rule
-	// combined with the state of all sources and products.
+	// combined with the state of all sources and targets.
 	// This should be a strong, collision-resistant value.
 	ContentHash(context.Context) ([]byte, error)
 
-	// Run is a function that can generate this rule's products.
+	// Run is a function that can generate this rule's targets.
 	Run(context.Context) error
 }
 
@@ -81,11 +84,11 @@ func (f *Fn) Run(ctx context.Context) error {
 		return errors.Wrap(err, "consulting hash DB")
 	}
 	if ok {
-		// Build not needed.
-		fmt.Println("xxx Build not needed")
+		if mg.Verbose() {
+			log.Printf("%s up to date", f.Rule)
+		}
 		return nil
 	}
-	fmt.Println("xxx Running build")
 	err = f.Rule.Run(ctx)
 	if err != nil {
 		return errors.Wrap(err, "in Run")

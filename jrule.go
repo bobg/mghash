@@ -25,6 +25,10 @@ type JRule struct {
 
 var _ Rule = JRule{}
 
+func (jr JRule) String() string {
+	return fmt.Sprintf("rule to produce %v", jr.Targets)
+}
+
 func (jr JRule) RuleHash() []byte {
 	jr2 := JRule{
 		Sources: make([]string, len(jr.Sources)),
@@ -63,7 +67,6 @@ func (jr JRule) ContentHash(_ context.Context) ([]byte, error) {
 		return nil, errors.Wrap(err, "in JSON marshaling")
 	}
 	sum := sha256.Sum256(j)
-	fmt.Printf("xxx jr.Hash for %v: %x\n", jr.Targets, sum[:])
 	return sum[:], nil
 }
 
