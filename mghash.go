@@ -57,7 +57,7 @@ type DB interface {
 var _ mg.Fn = &Fn{}
 
 func (f *Fn) Name() string {
-	// As suggested at runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name().
+	// As suggested at https://pkg.go.dev/github.com/magefile/mage@v1.13.0/mg#Fn.
 	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
 }
 
