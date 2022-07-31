@@ -14,9 +14,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Fn is an mg.Fn (see https://pkg.go.dev/github.com/magefile/mage/mg#Fn)
-// that knows how to skip rebuilding a target that is up-to-date with respect to its sources.
-// "Up-to-date" here does not refer to file modtimes, but rather to content hashes.
+// Fn is an mg.Fn
+// (see https://pkg.go.dev/github.com/magefile/mage/mg#Fn)
+// that knows how to skip rebuilding a target
+// that is up-to-date with respect to its sources.
+// "Up-to-date" here does not refer to file modtimes,
+// but rather to content hashes:
+// the existing target was computed from sources
+// that are byte-for-byte the same now
+// as they were when the target was built.
 type Fn struct {
 	DB   DB
 	Rule Rule

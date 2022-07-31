@@ -2,7 +2,9 @@
 
 This is mghash, an extension to [Mage](https://magefile.org/) for computing hash-based dependencies.
 
-Mage already includes functions for skipping recompilation of targets whose file modtimes are newer than those of their sources.
+Mage already includes functions for skipping recompilation
+of targets whose file modtimes are newer than those of their sources.
+(See [github.com/magefile/mage/target](https://pkg.go.dev/github.com/magefile/mage/target).)
 This library does the same thing, but based on content hashes, not file modtimes.
 
 # Example
