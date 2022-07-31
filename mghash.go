@@ -62,11 +62,13 @@ type DB interface {
 
 var _ mg.Fn = &Fn{}
 
+// Name implements mg.Fn.
 func (f *Fn) Name() string {
 	// As suggested at https://pkg.go.dev/github.com/magefile/mage@v1.13.0/mg#Fn.
 	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
 }
 
+// ID implements mg.Fn.
 func (f *Fn) ID() string {
 	s := struct {
 		Name     string `json:"name"`
@@ -80,6 +82,7 @@ func (f *Fn) ID() string {
 	return hex.EncodeToString(sum[:])
 }
 
+// Run implements mg.Fn.
 func (f *Fn) Run(ctx context.Context) error {
 	h, err := f.Rule.ContentHash(ctx)
 	if err != nil {
@@ -95,8 +98,7 @@ func (f *Fn) Run(ctx context.Context) error {
 		}
 		return nil
 	}
-	err = f.Rule.Run(ctx)
-	if err != nil {
+	if err = f.Rule.Run(ctx); err != nil {
 		return errors.Wrap(err, "in Run")
 	}
 	h, err = f.Rule.ContentHash(ctx)

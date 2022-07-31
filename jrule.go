@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -23,6 +24,7 @@ type JRule struct {
 	Sources []string `json:"sources"`
 	Targets []string `json:"targets"`
 	Command []string `json:"command"`
+	Dir     string   `json:"dir"`
 }
 
 var _ Rule = JRule{}
@@ -88,6 +90,7 @@ func (jr JRule) ContentHash(_ context.Context) ([]byte, error) {
 
 func (jr JRule) Run(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, jr.Command[0], jr.Command[1:]...)
+	cmd.Dir = jr.Dir
 	if mg.Verbose() {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -121,4 +124,56 @@ func hashFile(path string) ([]byte, error) {
 		return nil, errors.Wrapf(err, "hashing %s", path)
 	}
 	return hasher.Sum(nil), nil
+}
+
+// JDir parses a file named .mghash.json in the given directory,
+// if there is one,
+// returning the JRules it contains.
+// The default directory for any JRules not specifying one is dir.
+func JDir(dir string) ([]JRule, error) {
+	f, err := os.Open(filepath.Join(dir, ".mghash.json"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, errors.Wrapf(err, "opening %s/.msghash.json")
+	}
+	defer f.Close()
+	var (
+		result []JRule
+		dec    = json.NewDecoder(f)
+	)
+	for dec.More() {
+		var j JRule
+		if err = dec.Decode(&j); err != nil {
+			return errors.Wrapf(err, "parsing %s/.mghash.json")
+		}
+		if j.Dir == "" {
+			j.Dir = dir
+		}
+		result = append(result, j)
+	}
+	return result, nil
+}
+
+// JTree walks the tree rooted at dir,
+// looking for .mghash.json files
+// and parsing the JRules out of them using JDir.
+func JTree(dir string) ([]JRule, error) {
+	var result []JRule
+	err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return nil
+		}
+		j, err := JDir(path)
+		if err != nil {
+			return err
+		}
+		result = append(result, j...)
+		return nil
+	})
+	return result, err
 }
